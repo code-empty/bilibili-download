@@ -1,0 +1,7 @@
+C:\Users\77999\Desktop\desktop-downloader\src-tauri\target-local\debug\deps\debug_unreachable-413e1e8a1ed7b58d.d: C:\Users\77999\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\new_debug_unreachable-1.0.6\src\lib.rs
+
+C:\Users\77999\Desktop\desktop-downloader\src-tauri\target-local\debug\deps\libdebug_unreachable-413e1e8a1ed7b58d.rlib: C:\Users\77999\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\new_debug_unreachable-1.0.6\src\lib.rs
+
+C:\Users\77999\Desktop\desktop-downloader\src-tauri\target-local\debug\deps\libdebug_unreachable-413e1e8a1ed7b58d.rmeta: C:\Users\77999\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\new_debug_unreachable-1.0.6\src\lib.rs
+
+C:\Users\77999\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\new_debug_unreachable-1.0.6\src\lib.rs:

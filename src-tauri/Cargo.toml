@@ -1,0 +1,23 @@
+[package]
+name = "snapdown-desktop"
+version = "0.1.0"
+description = "SnapDown - Desktop video downloader"
+authors = ["auto-generated"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["process", "rt-multi-thread", "macros", "time"] }
+tauri = { version = "1.5", features = ["fs-all", "path-all"] }
+dirs = "5"
+rfd = "0.15"
+open = "5"
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
