@@ -136,14 +136,16 @@ npx tauri build --bundles nsis
 | `settings.json` | 用户设置（输出目录、Cookie 路径、重试次数） |
 | `tasks.json` | 下载任务历史 |
 
-## Cookie 配置（YouTube）
+## Cookie 配置
 
-YouTube 可能要求验证身份。如遇到 "Sign in to confirm you're not a bot" 错误：
+若下载遇到 HTTP 412 错误（被限制/禁止下载）或 YouTube 提示 "Sign in to confirm you're not a bot" 等错误，需要导入 Cookie：
 
-1. 在 Chrome 安装 [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) 扩展
-2. 打开 YouTube 并登录
-3. 用扩展导出 `cookies.txt`
-4. 在 SnapDown **参数设置 → Cookie 文件** 中选择该文件
+1. **Cookie 格式要求**：必须为 **Netscape** 格式。
+2. **获取工具**：可以在 Chrome 或 Edge 浏览器中安装 **Cookie-Editor** 插件（或使用 Chrome 的 **Get cookies.txt LOCALLY** 扩展）。
+3. **获取步骤**：
+   - 在浏览器中打开并登录对应的网站（如 Bilibili 或 YouTube）。
+   - 点击插件，选择导出格式为 **Netscape**，将导出的文本保存为 `.txt` 文件。
+4. **导入方式**：在 SnapDown **参数设置 → Cookie 文件** 中选择刚才保存的 `.txt` 文件。
 
 ## 许可
 
