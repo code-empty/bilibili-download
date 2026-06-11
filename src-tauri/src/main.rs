@@ -10,9 +10,29 @@ use state::AppState;
 
 fn main() {
     let state = Arc::new(AppState::new());
+    let state_for_setup = Arc::clone(&state);
 
     Builder::default()
         .manage(state)
+        .setup(move |_app| {
+            let python_exec = state_for_setup.python_exec.clone();
+            std::thread::spawn(move || {
+                let mut cmd = std::process::Command::new(&python_exec);
+                if state::python_needs_legacy_flag(&python_exec) {
+                    cmd.arg("-3");
+                }
+                cmd.args(["-m", "pip", "install", "-U", "yt-dlp"]);
+
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                }
+
+                let _ = cmd.status();
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::create_task,
             commands::list_tasks,
