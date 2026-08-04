@@ -60,6 +60,15 @@
               </el-select>
             </el-form-item>
 
+            <el-form-item label="视频编码" v-if="!isAudioOnly">
+              <el-select v-model="form.vcodec" size="large">
+                <el-option label="自动（默认）" value="auto" />
+                <el-option label="H.264 / AVC（适配老播放机）" value="h264" />
+                <el-option label="HEVC / H.265（高压缩率）" value="hevc" />
+                <el-option label="AV1（超高压缩率）" value="av1" />
+              </el-select>
+            </el-form-item>
+
             <el-form-item label="输出格式">
               <el-select v-model="form.format" size="large">
                 <el-option-group label="视频">
@@ -141,6 +150,14 @@
             </template>
           </el-table-column>
           <el-table-column label="速度" width="120" prop="speed" />
+          <el-table-column label="编码" width="110">
+            <template #default="scope">
+              <el-tag v-if="scope.row.vcodec && scope.row.vcodec !== 'auto'" size="small" type="warning" effect="plain">
+                {{ scope.row.vcodec.toUpperCase() }}
+              </el-tag>
+              <span v-else style="color: #8c8c8c; font-size: 12px;">自动</span>
+            </template>
+          </el-table-column>
           <el-table-column label="剩余" width="90" prop="eta">
             <template #default="scope">
               {{ scope.row.eta ? `${scope.row.eta}s` : '-' }}
@@ -212,6 +229,14 @@
             </div>
             <p class="setting-tip">仅用于你本人授权或登录态可访问内容，建议仅导入来自你浏览器的导出文件</p>
           </el-form-item>
+          <el-form-item label="默认视频编码">
+            <el-select v-model="settings.vcodec" style="width: 100%">
+              <el-option label="自动（默认）" value="auto" />
+              <el-option label="H.264 / AVC（适配老播放机）" value="h264" />
+              <el-option label="HEVC / H.265（高压缩率）" value="hevc" />
+              <el-option label="AV1（超高压缩率）" value="av1" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="失败重试次数">
             <el-input-number v-model="settings.retry_count" :min="0" :max="10" />
           </el-form-item>
@@ -242,6 +267,7 @@ interface TaskRecord {
   platform: string;
   quality: string;
   format: string;
+  vcodec: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   speed?: string;
@@ -258,6 +284,7 @@ interface Settings {
   output_dir: string;
   cookie_path: string;
   retry_count: number;
+  vcodec: string;
 }
 
 interface ProgressEvent {
@@ -289,12 +316,13 @@ const form = ref({
   platform_hint: 'auto',
   quality: '',
   format: 'mp4',
+  vcodec: 'auto',
   output_dir: '',
   overwrite: false,
 });
 
 const tasks = ref<TaskRecord[]>([]);
-const settings = ref<Settings>({ output_dir: '', cookie_path: '', retry_count: 2 });
+const settings = ref<Settings>({ output_dir: '', cookie_path: '', retry_count: 2, vcodec: 'auto' });
 const logs = ref<LogLine[]>([]);
 const openSettings = ref(false);
 const submitting = ref(false);
@@ -349,7 +377,10 @@ async function refreshList() {
 
 async function refreshSettings() {
   settings.value =
-    (await invoke<Settings>('get_settings')) || { output_dir: '', cookie_path: '', retry_count: 2 };
+    (await invoke<Settings>('get_settings')) || { output_dir: '', cookie_path: '', retry_count: 2, vcodec: 'auto' };
+  if (settings.value.vcodec && form.value.vcodec === 'auto') {
+    form.value.vcodec = settings.value.vcodec;
+  }
 }
 
 async function submitTask() {
@@ -367,6 +398,7 @@ async function submitTask() {
         cookie_path: settings.value.cookie_path || null,
         quality: form.value.quality || null,
         format: form.value.format || 'mp4',
+        vcodec: form.value.vcodec || settings.value.vcodec || 'auto',
         overwrite: form.value.overwrite,
       },
     });
@@ -391,6 +423,7 @@ async function retry(taskId: string) {
       cookie_path: settings.value.cookie_path || null,
       quality: task.quality || null,
       format: task.format || 'mp4',
+      vcodec: task.vcodec || settings.value.vcodec || 'auto',
       overwrite: true,
     },
   });
@@ -459,6 +492,7 @@ async function saveSettings() {
       output_dir: settings.value.output_dir,
       cookie_path: settings.value.cookie_path,
       retry_count: settings.value.retry_count,
+      vcodec: settings.value.vcodec || 'auto',
     },
   });
   ElMessage.success('设置已保存');

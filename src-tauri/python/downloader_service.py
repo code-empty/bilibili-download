@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from importlib import metadata
@@ -183,15 +184,30 @@ AUDIO_ONLY_FORMATS = {"mp3", "m4a", "flac"}
 
 
 def build_format_selectors(
-    ffmpeg_path: Optional[str], quality: str, fmt: str = "mp4", platform: str = "",
+    ffmpeg_path: Optional[str], quality: str, fmt: str = "mp4", platform: str = "", vcodec: str = "auto",
 ) -> list[str]:
     if fmt in AUDIO_ONLY_FORMATS:
         return ["bestaudio/best"]
 
     target_height = quality if quality.isdigit() else "1080"
     h = target_height
+    vcodec = (vcodec or "auto").lower().strip()
+
+    v_filter = ""
+    if vcodec in ("h264", "avc"):
+        v_filter = "[vcodec^=avc1]"
+    elif vcodec == "hevc":
+        v_filter = "[vcodec^=hev1]"
+    elif vcodec == "av1":
+        v_filter = "[vcodec^=av01]"
 
     if fmt == "video-only":
+        if v_filter:
+            return [
+                f"bestvideo[height<={h}]{v_filter}/best[height<={h}]{v_filter}",
+                f"bestvideo[height<={h}]/best[height<={h}]",
+                "bestvideo/best",
+            ]
         return [
             f"bestvideo[height<={h}]/best[height<={h}]",
             "bestvideo/best",
@@ -207,16 +223,113 @@ def build_format_selectors(
                 f"best[height<={h}]",
                 "best",
             ]
+        if v_filter:
+            return [
+                f"bestvideo[height<={h}]{v_filter}+bestaudio/best[height<={h}]{v_filter}",
+                f"bv[height<={h}]{v_filter}+ba/best[height<={h}]{v_filter}",
+                f"bestvideo[height<={h}]+bestaudio/best[height<={h}]",
+                f"bv[height<={h}]+ba/best[height<={h}]",
+                f"best[height<={h}]",
+                "best",
+            ]
         return [
             f"bestvideo[height<={h}]+bestaudio/best[height<={h}]",
             f"bv[height<={h}]+ba/best[height<={h}]",
             f"best[height<={h}]",
             "best",
         ]
+    if v_filter:
+        return [
+            f"best[height<={h}]{v_filter}",
+            f"best[height<={h}]/best",
+            "best",
+        ]
     return [
         f"best[height<={h}]/best",
         "best",
     ]
+
+
+def inspect_video_codec(file_path: str, ffmpeg_path: str) -> Optional[str]:
+    """Inspect the video stream codec using ffprobe."""
+    if not file_path or not os.path.exists(file_path):
+        return None
+    ffprobe_path = str(Path(ffmpeg_path).parent / "ffprobe.exe")
+    if not os.path.exists(ffprobe_path):
+        ffprobe_path = shutil.which("ffprobe") or ""
+
+    if ffprobe_path and os.path.exists(ffprobe_path):
+        try:
+            cmd = [
+                ffprobe_path,
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path,
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip().lower()
+        except Exception:
+            pass
+    return None
+
+
+def transcode_to_h264(file_path: str, ffmpeg_path: str, task_id: str) -> str:
+    """Transcode a non-H264 video to H.264/AAC for legacy player compatibility."""
+    if not file_path or not os.path.exists(file_path):
+        return file_path
+    temp_output = str(Path(file_path).with_name(f"{Path(file_path).stem}_h264.mp4"))
+    emit("log", {
+        "task_id": task_id,
+        "level": "info",
+        "message": f"Non-H264 stream detected. Transcoding to H.264 via FFmpeg for legacy player compatibility...",
+    })
+    cmd = [
+        ffmpeg_path,
+        "-y",
+        "-i", file_path,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "22",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        temp_output,
+    ]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0 and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
+            try:
+                os.remove(file_path)
+                os.rename(temp_output, file_path)
+                emit("log", {
+                    "task_id": task_id,
+                    "level": "info",
+                    "message": "Successfully transcoded video stream to H.264 (AVC) format.",
+                })
+                return file_path
+            except Exception as exc:
+                emit("log", {
+                    "task_id": task_id,
+                    "level": "warn",
+                    "message": f"Replace file after transcode failed: {exc}",
+                })
+                return temp_output
+        else:
+            emit("log", {
+                "task_id": task_id,
+                "level": "warn",
+                "message": f"FFmpeg H.264 transcoding failed: {res.stderr[:200] if res.stderr else 'Unknown error'}",
+            })
+            return file_path
+    except Exception as exc:
+        emit("log", {
+            "task_id": task_id,
+            "level": "warn",
+            "message": f"FFmpeg transcode exception: {exc}",
+        })
+        return file_path
 
 
 def run_task(task: Dict[str, Any]) -> None:
@@ -441,14 +554,15 @@ def run_task(task: Dict[str, Any]) -> None:
             "merger": ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k"],
         }
 
-    format_selectors = build_format_selectors(ffmpeg_path, quality, fmt, platform)
+    vcodec = str(task.get("vcodec") or "auto").strip().lower()
+    format_selectors = build_format_selectors(ffmpeg_path, quality, fmt, platform, vcodec)
     last_error: Optional[Exception] = None
     emit(
         "log",
         {
             "task_id": task_id,
             "level": "info",
-            "message": f"Start downloading [{platform}] task",
+            "message": f"Start downloading [{platform}] task (codec preference: {vcodec})",
         },
     )
     for selector in format_selectors:
@@ -465,6 +579,13 @@ def run_task(task: Dict[str, Any]) -> None:
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 actual_path = resolve_final_path(info, ydl)
+
+                # Check if H.264 transcoding is required for legacy player compatibility
+                if vcodec in ("h264", "avc") and fmt not in AUDIO_ONLY_FORMATS and ffmpeg_path:
+                    current_codec = inspect_video_codec(actual_path, ffmpeg_path)
+                    if current_codec and current_codec not in ("h264", "avc", "avc1"):
+                        actual_path = transcode_to_h264(actual_path, ffmpeg_path, task_id)
+
                 emit(
                     "result",
                     {

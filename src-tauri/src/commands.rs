@@ -353,6 +353,7 @@ fn spawn_python_task(
         "platform": platform,
         "quality": payload.quality.clone().unwrap_or_default(),
         "format": payload.format.clone().unwrap_or_else(|| "mp4".to_string()),
+        "vcodec": payload.vcodec.clone().unwrap_or_else(|| "auto".to_string()),
         "output_dir": safe_output_dir.to_string_lossy(),
         "cookie_path": cookie_path,
         "overwrite": payload.overwrite,
@@ -672,6 +673,17 @@ pub fn create_task(
             _ => settings.cookie_path.clone(),
         }
     };
+    let default_vcodec = state.settings.lock().unwrap().vcodec.clone();
+    let vcodec = match input.vcodec.clone() {
+        Some(v) if !v.trim().is_empty() => v,
+        _ => {
+            if default_vcodec.trim().is_empty() {
+                "auto".to_string()
+            } else {
+                default_vcodec
+            }
+        }
+    };
 
     let task_id = Uuid::new_v4().to_string();
     let retry_count = state.settings.lock().unwrap().retry_count;
@@ -684,6 +696,7 @@ pub fn create_task(
     );
     record.quality = input.quality.clone().unwrap_or_default();
     record.format = input.format.clone().unwrap_or_else(|| "mp4".to_string());
+    record.vcodec = vcodec.clone();
 
     {
         let mut tasks = state.tasks.lock().unwrap();
@@ -707,6 +720,7 @@ pub fn create_task(
         cookie_path: Some(cookie_path),
         quality: input.quality,
         format: input.format,
+        vcodec: Some(vcodec),
         overwrite: input.overwrite,
     };
 

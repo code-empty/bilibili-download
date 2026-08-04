@@ -18,7 +18,12 @@ pub struct DownloadInput {
     pub cookie_path: Option<String>,
     pub quality: Option<String>,
     pub format: Option<String>,
+    pub vcodec: Option<String>,
     pub overwrite: bool,
+}
+
+fn default_vcodec() -> String {
+    "auto".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -27,6 +32,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub cookie_path: String,
     pub retry_count: u8,
+    #[serde(default = "default_vcodec")]
+    pub vcodec: String,
 }
 
 impl Default for AppSettings {
@@ -42,6 +49,7 @@ impl Default for AppSettings {
             output_dir: fallback,
             cookie_path: String::new(),
             retry_count: 2,
+            vcodec: "auto".to_string(),
         }
     }
 }
@@ -53,6 +61,8 @@ pub struct TaskRecord {
     pub platform: String,
     pub quality: String,
     pub format: String,
+    #[serde(default = "default_vcodec")]
+    pub vcodec: String,
     pub status: TaskStatus,
     pub progress: f32,
     pub speed: Option<String>,
@@ -74,6 +84,7 @@ impl TaskRecord {
             platform,
             quality: String::new(),
             format: String::new(),
+            vcodec: "auto".to_string(),
             status: TaskStatus::Queued,
             progress: 0.0,
             speed: None,
